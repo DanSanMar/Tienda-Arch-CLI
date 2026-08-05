@@ -18,7 +18,13 @@ Un gestor de paquetes interactivo para Arch Linux. Busca, instala y elimina paqu
 
 
 
-  🚀 Instalación y Uso
+
+ 
+ 
+ 
+ 
+ 
+ 🚀 Instalación y Uso
 
 1. Clona este repositorio:
 Bash
@@ -63,11 +69,14 @@ Si quieres poder abrir la tienda desde cualquier emulador de terminal simplement
 
 ¡Listo! Ahora solo tienes que escribir store y presionar Enter para lanzar la interfaz al instante.
 
+
+
+
 ## Requisitos del Sistema
 
 Para que la interfaz y las funciones operen correctamente, necesitas tener instalado lo siguiente:
 ```bash
-   sudo pacman -S bash fzf pacman
+sudo pacman -S bash fzf pacman
 
 
 # AUR Helper (paru): El script utiliza paru como motor principal para gestionar AUR. Si no lo tienes, instálalo:
