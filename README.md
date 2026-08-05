@@ -35,13 +35,13 @@ cd Tienda-Arch-CLI
 2. Otorga permisos de ejecución al script:
 Bash
 
-chmod +x tienda.sh
+chmod +x store.sh
 
 3. Ejecución directa:
 Puedes usar el script estando dentro de la carpeta clonada:
 Bash
 
-./tienda.sh
+./store.sh
 
 🌟 Ejecución Global (Recomendado)
 
@@ -78,13 +78,11 @@ Para que la interfaz y las funciones operen correctamente, necesitas tener insta
 ```bash
 sudo pacman -S bash fzf pacman
 
-
 # AUR Helper (paru): El script utiliza paru como motor principal para gestionar AUR. Si no lo tienes, instálalo:
 sudo pacman -S --needed base-devel
 git clone [https://aur.archlinux.org/paru.git](https://aur.archlinux.org/paru.git)
 cd paru
 makepkg -si
-
 
 Nota:
 Fuentes (Opcional pero recomendado): El menú utiliza íconos de Nerd Fonts. Para que se visualicen correctamente, asegúrate de usar una tipografía parcheada (como JetBrainsMono Nerd Font, Hack Nerd Font, etc.) en tu emulador de terminal.
