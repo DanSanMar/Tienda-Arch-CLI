@@ -80,7 +80,6 @@ sudo pacman -S bash fzf pacman
 
 
 # AUR Helper (paru): El script utiliza paru como motor principal para gestionar AUR. Si no lo tienes, instálalo:
-
 sudo pacman -S --needed base-devel
 git clone [https://aur.archlinux.org/paru.git](https://aur.archlinux.org/paru.git)
 cd paru
@@ -88,5 +87,4 @@ makepkg -si
 
 
 Nota:
-
 Fuentes (Opcional pero recomendado): El menú utiliza íconos de Nerd Fonts. Para que se visualicen correctamente, asegúrate de usar una tipografía parcheada (como JetBrainsMono Nerd Font, Hack Nerd Font, etc.) en tu emulador de terminal.
