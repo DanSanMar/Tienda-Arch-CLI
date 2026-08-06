@@ -1,15 +1,94 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Limpiar archivos temporales al salir
-trap 'rm -f /tmp/arch_store_view' EXIT
+TMP_VIEW="/tmp/arch_store_view_$$"
 
-# Comprobar herramientas necesarias
-for cmd in fzf paru pacman; do
-    if ! command -v $cmd &> /dev/null; then
-        echo "Error: Se requiere '$cmd'. Instálalo antes de continuar."
+# puedes poner el mensaje de salida que quieras
+limpiar_salida() {
+    
+    rm -f "$TMP_VIEW"
+    
+    # Mensaje de despedida
+    echo -e "\n\033[1;32m[✓] Archivos temporales limpiados. ¡Archstaluego!\033[0m"
+    sleep 1
+    clear
+}
+
+trap limpiar_salida EXIT
+
+
+# Función para comprobar e instalar dependencias faltantes
+comprobar_dependencias() {
+    local faltantes=()
+
+    # Detectar qué comandos no están instalados
+    for cmd in fzf paru pacman; do
+        if ! command -v "$cmd" &> /dev/null; then
+            faltantes+=("$cmd")
+        fi
+    done
+
+    # Si no falta nada, continuamos
+    if [ ${#faltantes[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    echo -e "\033[1;33m[!] Faltan las siguientes herramientas requeridas:\033[0m ${faltantes[*]}"
+    read -rp "¿Deseas intentarlo instalar automáticamente? (s/N): " instalar_auto
+
+    if [[ "$instalar_auto" =~ ^[Ss]$ ]]; then
+        for cmd in "${faltantes[@]}"; do
+            echo -e "\n\033[1;34m==> Instalando $cmd...\033[0m"
+            case "$cmd" in
+                pacman|fzf)
+                    sudo pacman -S --needed --noconfirm "$cmd"
+                    ;;
+                paru)
+                    # 1. Asegurar dependencias de compilación
+                    echo "Instalando dependencias necesarias (base-devel, git, rust)..."
+                    sudo pacman -S --needed base-devel git
+
+                    # 2. Crear directorio temporal y clonar
+                    tmp_dir=$(mktemp -d)
+                    git clone https://aur.archlinux.org/paru.git "$tmp_dir"
+                    
+                    # 3. Entrar al directorio y compilar de forma interactiva
+                    pushd "$tmp_dir" >/dev/null || exit 1
+                    makepkg -si
+                    popd >/dev/null || exit 1
+
+                    # 4. Limpiar temporal
+                    rm -rf "$tmp_dir"
+                    ;;
+            esac
+        done
+        
+        # Verificar si realmente se instaló
+        if command -v paru &> /dev/null; then
+            echo -e "\n\033[1;32m[✓] ¡Todas las herramientas se han instalado correctamente!\033[0m"
+            sleep 2
+        else
+            echo -e "\n\033[1;31m[X] Ocurrió un error al compilar/instalar paru.\033[0m"
+            exit 1
+        fi
+    else
+        echo -e "\n\033[1;31mNo se instalaron las dependencias.\033[0m Puedes instalarlas manualmente con los siguientes comandos:\n"
+        for cmd in "${faltantes[@]}"; do
+            case "$cmd" in
+                pacman|fzf)
+                    echo -e "  \033[1msudo pacman -S $cmd\033[0m"
+                    ;;
+                paru)
+                    echo -e "  \033[1msudo pacman -S --needed base-devel git\033[0m"
+                    echo -e "  \033[1mgit clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si\033[0m"
+                    ;;
+            esac
+        done
+        echo ""
         exit 1
     fi
-done
+}
+
+comprobar_dependencias
 
 # Función para desbloquear pacman si hubo un error previo
 comprobar_bloqueo() {
