@@ -90,6 +90,55 @@ comprobar_dependencias() {
 
 comprobar_dependencias
 
+# === NUEVA FUNCIÓN: ANTIVIRUS/AUDITORÍA AUR ===
+escanear_aur() {
+    local paquete="$1"
+    echo -e "\033[1;34m[🛡️] Escaneando PKGBUILD de '$paquete' en busca de anomalías...\033[0m"
+    
+    local tmp_pkgbuild
+    tmp_pkgbuild=$(mktemp)
+    
+    # Descargar el PKGBUILD usando paru
+    if ! paru -Gp "$paquete" > "$tmp_pkgbuild" 2>/dev/null; then
+        echo -e "\033[1;33m[⚠️] No se pudo obtener el PKGBUILD para análisis previno.\033[0m"
+        rm -f "$tmp_pkgbuild"
+        return 0
+    fi
+
+    # Patrones sospechosos
+    local alertas=()
+    
+    grep -iE "rm\s+-rf\s+/(boot|etc|usr|var|home)?" "$tmp_pkgbuild" &>/dev/null && alertas+=("Comandos de borrado destructivos (rm -rf)")
+    grep -iE "(curl|wget|fetch)\s+http" "$tmp_pkgbuild" &>/dev/null && alertas+=("Descargas sin cifrar (HTTP) o ejecutables remotos directos")
+    grep -iE "(base64\s+-d|eval\s+|\bexec\b)" "$tmp_pkgbuild" &>/dev/null && alertas+=("Uso de desobfuscación o eval sospechoso")
+    grep -iE "/etc/sudoers|ALL=\(ALL\)" "$tmp_pkgbuild" &>/dev/null && alertas+=("Intento de modificación de permisos sudoers")
+    grep -iE "systemctl\s+(enable|start)" "$tmp_pkgbuild" &>/dev/null && alertas+=("Activación automática de servicios en instalación")
+
+    if [ ${#alertas[@]} -gt 0 ]; then
+        echo -e "\n\033[1;31m[⚠️ ALERTA DE SEGURIDAD AUR DETECTADA] ⚠️\033[0m"
+        echo -e "\033[33mSe encontraron las siguientes alertas de código en '$paquete':\033[0m"
+        for alerta in "${alertas[@]}"; do
+            echo -e " \033[1;31m•\033[0m $alerta"
+        done
+        echo ""
+        read -rp "¿Desea ver el PKGBUILD antes de continuar? (S/n): " ver_code
+        if [[ "$ver_code" =~ ^[Ss]$ || -z "$ver_code" ]]; then
+            less "$tmp_pkgbuild"
+        fi
+        
+        read -rp "⚠️ ¿Aún así deseas continuar con la instalación? (s/N): " proceder
+        rm -f "$tmp_pkgbuild"
+        if [[ ! "$proceder" =~ ^[Ss]$ ]]; then
+            echo -e "\033[1;31m[X] Instalación cancelada por el usuario por motivos de seguridad.\033[0m"
+            return 1
+        fi
+    else
+        echo -e "\033[1;32m[✔] Escaneo limpio: No se encontraron patrones sospechosos evidentes.\033[0m"
+        rm -f "$tmp_pkgbuild"
+    fi
+    return 0
+}
+
 # Función para desbloquear pacman si hubo un error previo
 comprobar_bloqueo() {
     if [ -f /var/lib/pacman/db.lck ]; then
@@ -127,8 +176,11 @@ buscar_e_instalar() {
 
         if [ -n "$seleccion" ]; then
             clear
-            echo -e "\033[1mInstalando:\033[0m $seleccion"
-            paru -S "$seleccion"
+            # Escanear paquete antes de ejecutar paru -S
+            if escanear_aur "$seleccion"; then
+                echo -e "\033[1mInstalando:\033[0m $seleccion"
+                paru -S "$seleccion"
+            fi
             read -p "Presiona Enter para volver al menú..."
         fi
     fi
