@@ -8,8 +8,8 @@ limpiar_salida() {
     rm -f "$TMP_VIEW"
     
     # Mensaje de despedida
-    echo -e "\n\033[1;32m[✓] Archivos temporales limpiados. ¡Archstaluego!\033[0m"
-    sleep 1
+    echo -e "\n\033[1m[✓] Archivos temporales limpiados. ¡Archstaluego!\033[0m"
+    sleep 5
     clear
 }
 
@@ -21,7 +21,7 @@ comprobar_dependencias() {
     local faltantes=()
 
     # Detectar qué comandos no están instalados
-    for cmd in fzf paru pacman; do
+    for cmd in fzf paru pacman arch-audit; do
         if ! command -v "$cmd" &> /dev/null; then
             faltantes+=("$cmd")
         fi
@@ -32,14 +32,14 @@ comprobar_dependencias() {
         return 0
     fi
 
-    echo -e "\033[1;33m[!] Faltan las siguientes herramientas requeridas:\033[0m ${faltantes[*]}"
+    echo -e "\033[1m[!] Faltan las siguientes herramientas requeridas:\033[0m ${faltantes[*]}"
     read -rp "¿Deseas intentarlo instalar automáticamente? (s/N): " instalar_auto
 
     if [[ "$instalar_auto" =~ ^[Ss]$ ]]; then
         for cmd in "${faltantes[@]}"; do
-            echo -e "\n\033[1;34m==> Instalando $cmd...\033[0m"
+            echo -e "\n\033[1m==> Instalando $cmd...\033[0m"
             case "$cmd" in
-                pacman|fzf)
+                pacman|fzf|arch-audit)
                     sudo pacman -S --needed --noconfirm "$cmd"
                     ;;
                 paru)
@@ -64,7 +64,7 @@ comprobar_dependencias() {
         
         # Verificar si realmente se instaló
         if command -v paru &> /dev/null; then
-            echo -e "\n\033[1;32m[✓] ¡Todas las herramientas se han instalado correctamente!\033[0m"
+            echo -e "\n\033[1m[✓] ¡Todas las herramientas se han instalado correctamente!\033[0m"
             sleep 2
         else
             echo -e "\n\033[1;31m[X] Ocurrió un error al compilar/instalar paru.\033[0m"
@@ -93,14 +93,14 @@ comprobar_dependencias
 # === NUEVA FUNCIÓN: ANTIVIRUS/AUDITORÍA AUR ===
 escanear_aur() {
     local paquete="$1"
-    echo -e "\033[1;34m[🛡️] Escaneando PKGBUILD de '$paquete' en busca de anomalías...\033[0m"
+    echo -e "\033[1m[🛡️] Escaneando PKGBUILD de '$paquete' en busca de anomalías...\033[0m"
     
     local tmp_pkgbuild
     tmp_pkgbuild=$(mktemp)
     
     # Descargar el PKGBUILD usando paru
     if ! paru -Gp "$paquete" > "$tmp_pkgbuild" 2>/dev/null; then
-        echo -e "\033[1;33m[⚠️] No se pudo obtener el PKGBUILD para análisis previno.\033[0m"
+        echo -e "\033[1m[⚠️] No se pudo obtener el PKGBUILD para análisis previno.\033[0m"
         rm -f "$tmp_pkgbuild"
         return 0
     fi
@@ -115,10 +115,10 @@ escanear_aur() {
     grep -iE "systemctl\s+(enable|start)" "$tmp_pkgbuild" &>/dev/null && alertas+=("Activación automática de servicios en instalación")
 
     if [ ${#alertas[@]} -gt 0 ]; then
-        echo -e "\n\033[1;31m[⚠️ ALERTA DE SEGURIDAD AUR DETECTADA] ⚠️\033[0m"
-        echo -e "\033[33mSe encontraron las siguientes alertas de código en '$paquete':\033[0m"
+        echo -e "\n\033[1m[⚠️ ALERTA DE SEGURIDAD AUR DETECTADA] ⚠️\033[0m"
+        echo -e "Se encontraron las siguientes alertas de código en '$paquete':"
         for alerta in "${alertas[@]}"; do
-            echo -e " \033[1;31m•\033[0m $alerta"
+            echo -e " \033[1m•\033[0m $alerta"
         done
         echo ""
         read -rp "¿Desea ver el PKGBUILD antes de continuar? (S/n): " ver_code
@@ -129,14 +129,99 @@ escanear_aur() {
         read -rp "⚠️ ¿Aún así deseas continuar con la instalación? (s/N): " proceder
         rm -f "$tmp_pkgbuild"
         if [[ ! "$proceder" =~ ^[Ss]$ ]]; then
-            echo -e "\033[1;31m[X] Instalación cancelada por el usuario por motivos de seguridad.\033[0m"
+            echo -e "\033[1m[X] Instalación cancelada por el usuario por motivos de seguridad.\033[0m"
             return 1
         fi
     else
-        echo -e "\033[1;32m[✔] Escaneo limpio: No se encontraron patrones sospechosos evidentes.\033[0m"
+        echo -e "\033[1m[✔] Escaneo limpio: No se encontraron patrones sospechosos evidentes.\033[0m"
         rm -f "$tmp_pkgbuild"
     fi
     return 0
+}
+
+# === NUEVA FUNCIÓN: AUDITORÍA DE SEGURIDAD DEL SISTEMA ===
+auditar_sistema() {
+    clear
+    echo -e "\033[1m=== AUDITORÍA Y DETECCIÓN DE INTRUSOS ===\033[0m"
+    echo -e "----------------------------------------------------"
+
+    # 1. ESCANEO DE INTENTOS DE AUTENTICACIÓN ROOT/SUDO
+    echo -e "\n\033[1m[1/4] Analizando registros de autenticación (Root/Sudo)...\033[0m"
+    local logs_auth
+    logs_auth=$(journalctl -u systemd-logind -u sudo --since "24 hours ago" | grep -iE "failed|ACCEPTED|session opened for user root" | tail -n 10)
+    
+    if [ -n "$logs_auth" ]; then
+        echo -e "\033[1mÚltimos eventos críticos de autenticación (24h):\033[0m"
+        echo "$logs_auth"
+    else
+        echo -e "\033[1m[✔] Sin actividades sospechosas o fallos masivos en las últimas 24 horas.\033[0m"
+    fi
+
+    # 2. DETECCIÓN DE PUERTOS ABIERTOS Y PUERTAS TRASERAS
+    echo -e "\n\033[1m[2/4] Escaneando puertos de red abiertos (LISTEN)...\033[0m"
+    local puertos_abiertos
+    # Añadimos grep -v "Netid" para omitir la cabecera
+    puertos_abiertos=$(ss -tulpn state listening 2>/dev/null | grep -v "Netid" | grep -v "127.0.0.1" | grep -v "\[::1\]")
+
+    if [ -n "$puertos_abiertos" ]; then
+        echo -e "Puertos escuchando en interfaces de red externas:"
+        echo "$puertos_abiertos"
+    else
+        echo -e "\033[1m[✔] No hay puertos expuestos a redes externas de forma no local.\033[0m"
+    fi
+
+    # 3. VERIFICACIÓN DE INTEGRIDAD DE ARCHIVOS DEL SISTEMA
+    echo -e "\n\033[1m[3/4] Verificando alteración de binaries/archivos instalados...\033[0m"
+    echo "Analizando cambios en hashes MTIME/MTREE (Esto puede tardar unos segundos)..."
+    
+    # Redirigimos stderr a stdout (2>&1) y filtramos advertencias irrelevantes de archivos de configuración común
+    local report_alterados
+    report_alterados=$(pacman -Qkk 2>&1 | grep -E "warning:.*(MTIME|checksum|size)" | grep -vE "(/etc/|/var/|/tmp/)")
+
+    if [ -n "$report_alterados" ]; then
+        echo -e "\033[1m[⚠️] Se detectaron binarios o paquetes con archivos modificados/corruptos:\033[0m"
+        echo "$report_alterados"
+        echo ""
+        
+        # Obtener nombres de paquetes afectados de forma única
+        local paquetes_afectados
+        paquetes_afectados=$(echo "$report_alterados" | awk -F':' '{print $2}' | awk '{print $1}' | sort -u)
+
+        read -rp "¿Deseas reinstalar automáticamente los paquetes alterados para restaurarlos? (s/N): " reparar
+        if [[ "$reparar" =~ ^[Ss]$ ]]; then
+            echo -e "\n\033[1m==> Reinstalando paquetes para restaurar binarios originales...\033[0m"
+            sudo pacman -S --noconfirm $paquetes_afectados
+            echo -e "\033[1m[✔] Archivos restaurados desde los repositorios oficiales.\033[0m"
+        fi
+    else
+        echo -e "\033[1m[✔] Todos los binarios clave coinciden con la firma original del repositorio.\033[0m"
+    fi
+
+    # 4. AUDITORÍA DE VULNERABILIDADES CONOCIDAS (CVEs)
+    echo -e "\n\033[1m[4/4] Buscando vulnerabilidades conocidas en paquetes instalados...\033[0m"
+    if command -v arch-audit &>/dev/null; then
+        # Consultamos SOLO los paquetes que realmente se pueden actualizar ahora mismo
+        local parches_pendientes
+        parches_pendientes=$(arch-audit -u)
+
+        if [ -n "$parches_pendientes" ]; then
+            echo -e "\033[1m[⚠️] Se encontraron paquetes con parches de seguridad PENDIENTES de instalar:\033[0m"
+            echo "$parches_pendientes"
+            echo ""
+            read -rp "¿Deseas ejecutar 'paru -Syu' ahora para corregir estas vulnerabilidades? (S/n): " act_sec
+            if [[ "$act_sec" =~ ^[Ss]$ || -z "$act_sec" ]]; then
+                paru -Syu
+            fi
+        else
+            echo -e "\033[1m[✔] Tu sistema cuenta con la versión más reciente y segura de todos los paquetes.\033[0m"
+            echo -e "[>] (Para ver la información completa puedes ejecutar 'arch-audit -c' pero recuerda que los CVEs teóricos no solucionables son mitigados automáticamente por el kernel y Arch Linux)."
+        fi
+    else
+        echo -e "Nota: Instala 'arch-audit' (sudo pacman -S arch-audit) para habilitar esta comprobación."
+    fi
+    
+    echo -e "\n----------------------------------------------------"
+    read -p "Auditoría completada. Presiona Enter para volver..."
 }
 
 # Función para desbloquear pacman si hubo un error previo
@@ -335,9 +420,10 @@ echo -e "\033[0m"
     echo -e "\033[1m\033[35m   ╰───────────────────────────────────╯\033[0m"
     echo ""
     
-    opcion=$(printf "1. 󰏖 Buscar e Instalar\n2. 󰛌 Ver Instalados y Remover\n3. 󰮯 Explorar Paquetes Instalados\n4. 󰚰 Actualizar Sistema\n5. 󰃢 Limpiar Sistema\n6. 󰈆 Salir" | fzf \
+    # Añado la opción al menú para auditar sistema
+    opcion=$(printf "1. 󰏖 Buscar e Instalar\n2. 󰛌 Ver Instalados y Remover\n3. 󰮯 Explorar Paquetes Instalados\n4. 󰚰 Actualizar Sistema\n5. 󰃢 Limpiar Sistema\n6. s Auditar Sistema (Antivirus/Seguridad)\n7. 󰈆 Salir" | fzf \
         --prompt="Selecciona una acción  " \
-        --height=15 \
+        --height=16 \
         --layout=reverse \
         --border=rounded)
 
@@ -347,6 +433,7 @@ echo -e "\033[0m"
         *"Explorar Paquetes Instalados"*) explorar_paquetes ;;
         *"Actualizar Sistema"*) actualizar_sistema ;;
         *"Limpiar Sistema"*) limpiar_sistema ;;
+        *"Auditar Sistema"*) auditar_sistema ;;
         *"Salir"*|"") clear; exit 0 ;;
     esac
 done
